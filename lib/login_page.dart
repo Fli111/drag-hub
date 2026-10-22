@@ -1,36 +1,33 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'main.dart';
 
 // Model data User
 class UserModel {
+  final String? id;
   final String username;
   final String password;
   final String name;
   final String role; // 'panitia' atau 'pengguna'
 
   const UserModel({
+    this.id,
     required this.username,
     required this.password,
     required this.name,
     required this.role,
   });
-}
 
-// Data dummy user (hardcoded langsung di kode, tanpa database)
-final List<UserModel> dummyUsers = [
-  const UserModel(
-    username: 'panitia',
-    password: '123',
-    name: 'Official Panitia BSD',
-    role: 'panitia',
-  ),
-  const UserModel(
-    username: 'rider',
-    password: '123',
-    name: 'Rider Drag #46',
-    role: 'pengguna',
-  ),
-];
+  factory UserModel.fromFirestore(Map<String, dynamic> data, [String? id]) {
+    return UserModel(
+      id: id,
+      username: data['username'] ?? '',
+      password: data['password'] ?? '',
+      name: data['name'] ?? 'User',
+      role: data['role'] ?? 'pengguna',
+    );
+  }
+}
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -43,9 +40,10 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isLoading = false;
   String? _errorMessage;
 
-  void _handleLogin() {
+  Future<void> _handleLogin() async {
     final username = _usernameController.text.trim();
     final password = _passwordController.text.trim();
 
@@ -56,28 +54,53 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    // Cek kecocokan di data dummy
-    final userMatch = dummyUsers.where(
-      (user) => user.username == username && user.password == password,
-    );
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
-    if (userMatch.isNotEmpty) {
-      final loggedInUser = userMatch.first;
-      setState(() {
-        _errorMessage = null;
-      });
+    try {
+      // Query ke koleksi 'users' di Cloud Firestore
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('username', isEqualTo: username)
+          .where('password', isEqualTo: password)
+          .limit(1)
+          .get();
 
-      // Pindah ke HomePage dengan membawa data user
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => HomePage(currentUser: loggedInUser),
-        ),
-      );
-    } else {
+      if (!mounted) return;
+
+      if (querySnapshot.docs.isNotEmpty) {
+        final doc = querySnapshot.docs.first;
+        final loggedInUser = UserModel.fromFirestore(doc.data(), doc.id);
+
+        setState(() {
+          _errorMessage = null;
+        });
+
+        // Pindah ke HomePage dengan membawa data user dari database
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => HomePage(currentUser: loggedInUser),
+          ),
+        );
+      } else {
+        setState(() {
+          _errorMessage = 'Username atau password salah (tidak ditemukan di database)!';
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
       setState(() {
-        _errorMessage = 'Username atau password salah!';
+        _errorMessage = 'Gagal terhubung ke database: $e';
       });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 

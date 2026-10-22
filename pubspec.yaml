@@ -30,10 +30,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
-  # The following adds the Cupertino Icons font to your application.
-  # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.8
+  # Tambahkan baris ini di bawah dependencies:
+  firebase_core: ^3.10.0      # Wajib untuk inisialisasi Firebase
+  cloud_firestore: ^5.6.0    # Untuk database Firestore (simpan data event, user, dll)
+  firebase_auth: ^5.4.0      # Untuk fitur login/register (opsional kalau mau pakai auth bawaan)
 
 dev_dependencies:
   flutter_test:
